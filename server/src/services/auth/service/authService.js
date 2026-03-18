@@ -2,6 +2,7 @@ import AppError from "../../../shared/utils/AppError.js";
 import jwt from "jsonwebtoken";
 import config from "../../../shared/config/index.js";
 import logger from "../../../shared/config/logger.js";
+import bcrypt from "bcrypt";
 
 export class AuthService {
 
@@ -35,6 +36,12 @@ export class AuthService {
         return userObj;
     }
 
+    // verifies user-entered password with stored hashed password
+    async comparePassword(userEnteredPassword, hashedPassword) {
+        return bcrypt.compare(userEnteredPassword, hashedPassword);
+    }
+
+
     // onboard the first super admin
     async onboardSuperAdmin(superAdminData) {
         try {
@@ -55,6 +62,80 @@ export class AuthService {
             }
         } catch (e) {
             logger.error("Error occurred while Admin onboarding", e);
+            throw e;
+        }
+    }
+
+    // handles user creation & token generation
+    async register(userData){
+        try {
+            const existingUser = await this.userRepository.findByUsername(userData.username);
+            if (existingUser) {
+                throw new AppError("Username already exists", 409);
+            }
+
+            const existingEmail = await this.userRepository.findByEmail(userData.email);
+            if (existingEmail) {
+                throw new AppError("Email already exists", 409);
+            }
+
+            const user = await  this.userRepository.create(userData);
+
+            const token = this.generateToken(user);
+            logger.info("User registered successfully", {username: user.username});
+
+            return {
+                user: this.formatUserForResponse(user),
+                token,
+            }
+        } catch (e) {
+            logger.error("Error occurred while registering user", e);
+            throw e;
+        }
+    }
+
+    // validates credentials & issues token
+    async login(username, password) {
+        try {
+            const user = await this.userRepository.findByUsername(username);
+            if (!user) {
+                throw new AppError("Invalid Credentials", 401);
+            }
+
+            if (!user.isActive) {
+                throw new AppError("Account is deactivated", 403);
+            }
+
+            const isPasswordValid = await this.comparePassword(password, user.password);
+            if (!isPasswordValid) {
+                throw new AppError("Invalid Credentials", 401);
+            }
+
+            const token = this.generateToken(user);
+
+            logger.info("user loggedIn successfully", { username: user.username });
+
+            return {
+                user: this.formatUserForResponse(user),
+                token,
+            }
+        } catch (e) {
+            logger.error("Error occurred while logging", e);
+            throw e;
+        }
+    }
+
+    // fetches user profile by ID
+    async getProfile(userId){
+        try {
+            const user = await this.userRepository.findById(userId);
+            if (!user){
+                throw new AppError("User not found", 404);
+            }
+
+            return this.formatUserForResponse(user);
+        } catch (e) {
+            logger.error("Error occurred while getting profile", e);
             throw e;
         }
     }
