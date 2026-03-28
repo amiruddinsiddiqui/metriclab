@@ -10,4 +10,8 @@ router.use(authenticate);
 router.post('/admin/clients/onboard', (req, res, next) => clientController.createClient(req, res, next));
 router.post("/admin/clients/:clientId/users", (req, res, next) => clientController.createClientUser(req, res, next))
 
+router.post("/admin/clients/:clientId/api/keys", (req, res, next) => clientController.createApiKey(req, res, next))
+router.get("/admin/clients/:clientId/api/keys", (req, res, next) => clientController.getClientApiKey(req, res, next))
+
+
 export default router;
